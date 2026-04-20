@@ -169,15 +169,17 @@ export default function CreateCourse() {
         createdAt: serverTimestamp(),
       });
 
+      console.log('Curso guardado con ID:', docRef.id);
+
       setStatus('success');
 
       window.setTimeout(() => {
         navigate(`/course/${docRef.id}`);
       }, 1200);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al publicar curso:', error);
       setStatus('idle');
-      alert('Hubo un error al publicar el curso');
+      alert(`Error real: ${error?.message || 'No se pudo guardar el curso'}`);
     }
   };
 
