@@ -4,6 +4,8 @@ import SearchResults from './pages/SearchResults';
 import CourseDetail from './pages/CourseDetail';
 import UserProfile from './pages/UserProfile';
 import CreateCourse from './pages/CreateCourse';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 export const router = createBrowserRouter([
   {
@@ -25,5 +27,13 @@ export const router = createBrowserRouter([
   {
     path: '/create',
     element: <CreateCourse />,
+  },
+  {
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/register',
+    element: <Register />,
   },
 ]);

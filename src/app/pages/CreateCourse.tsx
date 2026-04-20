@@ -3,7 +3,9 @@ import { Upload, Plus, X, CircleAlert, CheckCircle2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { categories } from '../data/mockData';
-import { formatMinutes, getLessonsDuration, levelOptions, publishCourse } from '../lib/courseStore';
+import { formatMinutes, getLessonsDuration, levelOptions } from '../lib/courseStore';
+import { db } from '../../services/firebaseConfig';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface LessonForm {
   id: string;
@@ -21,10 +23,12 @@ interface FormErrors {
   lessons?: string;
 }
 
-const defaultImage = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200';
+const defaultImage =
+  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200';
 
 export default function CreateCourse() {
   const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -34,15 +38,21 @@ export default function CreateCourse() {
     price: '',
     tags: '',
   });
+
   const [lessons, setLessons] = useState<LessonForm[]>([]);
   const [newLesson, setNewLesson] = useState({ title: '', duration: '' });
   const [imagePreview, setImagePreview] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
 
-  const totalDuration = useMemo(() => formatMinutes(getLessonsDuration(lessons)), [lessons]);
+  const totalDuration = useMemo(
+    () => formatMinutes(getLessonsDuration(lessons)),
+    [lessons]
+  );
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
 
@@ -59,7 +69,10 @@ export default function CreateCourse() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setErrors((prev) => ({ ...prev, image: 'Sube un archivo de imagen válido.' }));
+      setErrors((prev) => ({
+        ...prev,
+        image: 'Sube un archivo de imagen válido.',
+      }));
       return;
     }
 
@@ -73,11 +86,17 @@ export default function CreateCourse() {
 
   const addLesson = () => {
     if (!newLesson.title.trim() || !newLesson.duration.trim()) {
-      setErrors((prev) => ({ ...prev, lessons: 'Cada lección necesita título y duración.' }));
+      setErrors((prev) => ({
+        ...prev,
+        lessons: 'Cada lección necesita título y duración.',
+      }));
       return;
     }
 
-    setLessons((prev) => [...prev, { ...newLesson, id: Date.now().toString() }]);
+    setLessons((prev) => [
+      ...prev,
+      { ...newLesson, id: Date.now().toString() },
+    ]);
     setNewLesson({ title: '', duration: '' });
     setErrors((prev) => ({ ...prev, lessons: undefined }));
   };
@@ -92,24 +111,31 @@ export default function CreateCourse() {
     if (!formData.title.trim() || formData.title.trim().length < 8) {
       nextErrors.title = 'Pon un título más claro, de al menos 8 caracteres.';
     }
+
     if (!formData.description.trim() || formData.description.trim().length < 40) {
-      nextErrors.description = 'Describe mejor el curso. Intenta escribir al menos 40 caracteres.';
+      nextErrors.description =
+        'Describe mejor el curso. Intenta escribir al menos 40 caracteres.';
     }
+
     if (!formData.category.trim()) {
       nextErrors.category = 'Selecciona una categoría.';
     }
+
     if (!formData.level.trim()) {
       nextErrors.level = 'Selecciona un nivel.';
     }
+
     if (!imagePreview) {
       nextErrors.image = 'Agrega una portada para el curso.';
     }
+
     if (formData.isPaid) {
       const priceNumber = Number(formData.price);
       if (!formData.price || Number.isNaN(priceNumber) || priceNumber <= 0) {
         nextErrors.price = 'Ingresa un precio válido mayor que 0.';
       }
     }
+
     if (lessons.length === 0) {
       nextErrors.lessons = 'Agrega al menos una lección antes de publicar.';
     }
@@ -118,32 +144,41 @@ export default function CreateCourse() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!validateForm()) return;
 
-    setStatus('saving');
+    try {
+      setStatus('saving');
 
-    const publishedCourse = publishCourse({
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      category: formData.category,
-      level: formData.level as 'Principiante' | 'Intermedio' | 'Avanzado',
-      duration: totalDuration,
-      isPaid: formData.isPaid,
-      price: formData.isPaid ? Number(formData.price) : undefined,
-      image: imagePreview || defaultImage,
-      lessons,
-      tags: formData.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    });
+      const docRef = await addDoc(collection(db, 'courses'), {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category,
+        level: formData.level,
+        duration: totalDuration,
+        isPaid: formData.isPaid,
+        price: formData.isPaid ? Number(formData.price) : 0,
+        image: imagePreview || defaultImage,
+        lessons,
+        tags: formData.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        createdAt: serverTimestamp(),
+      });
 
-    setStatus('success');
-    window.setTimeout(() => {
-      navigate(`/course/${publishedCourse.id}`);
-    }, 1200);
+      setStatus('success');
+
+      window.setTimeout(() => {
+        navigate(`/course/${docRef.id}`);
+      }, 1200);
+    } catch (error) {
+      console.error('Error al publicar curso:', error);
+      setStatus('idle');
+      alert('Hubo un error al publicar el curso');
+    }
   };
 
   return (
@@ -152,8 +187,13 @@ export default function CreateCourse() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Crear nuevo curso</h1>
-          <p className="text-gray-600">Comparte tu conocimiento con la comunidad sin cambiar el estilo visual de tu plataforma.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Crear nuevo curso
+          </h1>
+          <p className="text-gray-600">
+            Comparte tu conocimiento con la comunidad sin cambiar el estilo
+            visual de tu plataforma.
+          </p>
         </div>
 
         {status === 'success' && (
@@ -161,7 +201,10 @@ export default function CreateCourse() {
             <CheckCircle2 className="mt-0.5 h-5 w-5" />
             <div>
               <p className="font-semibold">Curso publicado</p>
-              <p className="text-sm">Lo guardé en el catálogo local del prototipo y te estoy llevando a la vista del curso.</p>
+              <p className="text-sm">
+                El curso se guardó en Firebase y te estoy llevando a la vista del
+                curso.
+              </p>
             </div>
           </div>
         )}
@@ -169,14 +212,22 @@ export default function CreateCourse() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-200">
             <label className="block mb-4">
-              <span className="text-sm font-medium text-gray-900">Imagen del curso</span>
-              <p className="text-sm text-gray-500 mb-3">Sube una portada atractiva para darle más realismo al proyecto.</p>
+              <span className="text-sm font-medium text-gray-900">
+                Imagen del curso
+              </span>
+              <p className="text-sm text-gray-500 mb-3">
+                Sube una portada atractiva para darle más realismo al proyecto.
+              </p>
             </label>
 
             <div className="relative">
               {imagePreview ? (
                 <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-gray-200">
-                  <img src={imagePreview} alt="Vista previa del curso" className="w-full h-full object-cover" />
+                  <img
+                    src={imagePreview}
+                    alt="Vista previa del curso"
+                    className="w-full h-full object-cover"
+                  />
                   <button
                     type="button"
                     onClick={() => setImagePreview('')}
@@ -188,18 +239,33 @@ export default function CreateCourse() {
               ) : (
                 <label className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
                   <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-700 font-medium mb-1">Haz clic para subir una imagen</p>
+                  <p className="text-gray-700 font-medium mb-1">
+                    Haz clic para subir una imagen
+                  </p>
                   <p className="text-sm text-gray-500">PNG, JPG o WEBP</p>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
                 </label>
               )}
             </div>
-            {errors.image && <p className="mt-3 text-sm text-red-600">{errors.image}</p>}
+
+            {errors.image && (
+              <p className="mt-3 text-sm text-red-600">{errors.image}</p>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl p-6 border border-gray-200 space-y-6">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-900 mb-2">Título del curso</label>
+              <label
+                htmlFor="title"
+                className="block text-sm font-medium text-gray-900 mb-2"
+              >
+                Título del curso
+              </label>
               <input
                 id="title"
                 name="title"
@@ -209,11 +275,18 @@ export default function CreateCourse() {
                 placeholder="Ej: Aprende a usar Figma desde cero"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
-              {errors.title && <p className="mt-2 text-sm text-red-600">{errors.title}</p>}
+              {errors.title && (
+                <p className="mt-2 text-sm text-red-600">{errors.title}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-900 mb-2">Descripción</label>
+              <label
+                htmlFor="description"
+                className="block text-sm font-medium text-gray-900 mb-2"
+              >
+                Descripción
+              </label>
               <textarea
                 id="description"
                 name="description"
@@ -223,12 +296,21 @@ export default function CreateCourse() {
                 placeholder="Explica qué aprenderá la persona, cómo está estructurado el curso y para quién es útil."
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               />
-              {errors.description && <p className="mt-2 text-sm text-red-600">{errors.description}</p>}
+              {errors.description && (
+                <p className="mt-2 text-sm text-red-600">
+                  {errors.description}
+                </p>
+              )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-900 mb-2">Categoría</label>
+                <label
+                  htmlFor="category"
+                  className="block text-sm font-medium text-gray-900 mb-2"
+                >
+                  Categoría
+                </label>
                 <select
                   id="category"
                   name="category"
@@ -238,14 +320,23 @@ export default function CreateCourse() {
                 >
                   <option value="">Selecciona una categoría</option>
                   {categories.map((category) => (
-                    <option key={category.id} value={category.name}>{category.name}</option>
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
                   ))}
                 </select>
-                {errors.category && <p className="mt-2 text-sm text-red-600">{errors.category}</p>}
+                {errors.category && (
+                  <p className="mt-2 text-sm text-red-600">{errors.category}</p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="level" className="block text-sm font-medium text-gray-900 mb-2">Nivel</label>
+                <label
+                  htmlFor="level"
+                  className="block text-sm font-medium text-gray-900 mb-2"
+                >
+                  Nivel
+                </label>
                 <select
                   id="level"
                   name="level"
@@ -255,10 +346,14 @@ export default function CreateCourse() {
                 >
                   <option value="">Selecciona un nivel</option>
                   {levelOptions.map((level) => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
                   ))}
                 </select>
-                {errors.level && <p className="mt-2 text-sm text-red-600">{errors.level}</p>}
+                {errors.level && (
+                  <p className="mt-2 text-sm text-red-600">{errors.level}</p>
+                )}
               </div>
             </div>
 
@@ -272,13 +367,22 @@ export default function CreateCourse() {
                   className="mt-1 h-4 w-4"
                 />
                 <div>
-                  <span className="font-medium text-gray-900">Curso de pago</span>
-                  <p className="text-sm text-gray-500">Actívalo si quieres mostrarlo como contenido premium.</p>
+                  <span className="font-medium text-gray-900">
+                    Curso de pago
+                  </span>
+                  <p className="text-sm text-gray-500">
+                    Actívalo si quieres mostrarlo como contenido premium.
+                  </p>
                 </div>
               </label>
 
               <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-900 mb-2">Precio</label>
+                <label
+                  htmlFor="price"
+                  className="block text-sm font-medium text-gray-900 mb-2"
+                >
+                  Precio
+                </label>
                 <input
                   id="price"
                   name="price"
@@ -291,12 +395,19 @@ export default function CreateCourse() {
                   placeholder="0.00"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100"
                 />
-                {errors.price && <p className="mt-2 text-sm text-red-600">{errors.price}</p>}
+                {errors.price && (
+                  <p className="mt-2 text-sm text-red-600">{errors.price}</p>
+                )}
               </div>
             </div>
 
             <div>
-              <label htmlFor="tags" className="block text-sm font-medium text-gray-900 mb-2">Etiquetas</label>
+              <label
+                htmlFor="tags"
+                className="block text-sm font-medium text-gray-900 mb-2"
+              >
+                Etiquetas
+              </label>
               <input
                 id="tags"
                 name="tags"
@@ -306,16 +417,23 @@ export default function CreateCourse() {
                 placeholder="Ej: figma, diseño, interfaz"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
-              <p className="mt-2 text-sm text-gray-500">Sepáralas por coma para mejorar la búsqueda del curso.</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Sepáralas por coma para mejorar la búsqueda del curso.
+              </p>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl p-6 border border-gray-200">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Lecciones del curso</h2>
-                <p className="text-sm text-gray-500">Duración total estimada: {lessons.length ? totalDuration : '0 min'}</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Lecciones del curso
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Duración total estimada: {lessons.length ? totalDuration : '0 min'}
+                </p>
               </div>
+
               {errors.lessons && (
                 <div className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
                   <CircleAlert className="w-4 h-4" />
@@ -328,14 +446,18 @@ export default function CreateCourse() {
               <input
                 type="text"
                 value={newLesson.title}
-                onChange={(e) => setNewLesson((prev) => ({ ...prev, title: e.target.value }))}
+                onChange={(e) =>
+                  setNewLesson((prev) => ({ ...prev, title: e.target.value }))
+                }
                 placeholder="Título de la lección"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <input
                 type="text"
                 value={newLesson.duration}
-                onChange={(e) => setNewLesson((prev) => ({ ...prev, duration: e.target.value }))}
+                onChange={(e) =>
+                  setNewLesson((prev) => ({ ...prev, duration: e.target.value }))
+                }
                 placeholder="Ej: 8 min"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
@@ -351,12 +473,17 @@ export default function CreateCourse() {
 
             <div className="space-y-3">
               {lessons.map((lesson, index) => (
-                <div key={lesson.id} className="flex items-center gap-4 rounded-xl border border-gray-200 px-4 py-3">
+                <div
+                  key={lesson.id}
+                  className="flex items-center gap-4 rounded-xl border border-gray-200 px-4 py-3"
+                >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-700 font-semibold">
                     {index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{lesson.title}</p>
+                    <p className="font-medium text-gray-900 truncate">
+                      {lesson.title}
+                    </p>
                     <p className="text-sm text-gray-500">{lesson.duration}</p>
                   </div>
                   <button
