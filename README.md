@@ -22,21 +22,10 @@
 ## Lo que se mejoró
 - Se mejoró la funcionalidad de la plataforma permitiendo crear y guardar cursos, mejorar la búsqueda con filtros, ordenar resultados y gestionar cursos desde el perfil. Además, se optimizó la experiencia de usuario con validaciones más claras, mejor navegación y pequeños ajustes de rendimiento.
 
-# Capturas del proyecto:
-- ![Home](<Capture buscador de cursos.png>)
-- ![Login](image.png)
-- ![Sign Up](image-1.png)
-- ![Categorias](categorias.png)
-- ![Creación de curso](image-2.png)
-- ![Perfil](image-3.png)
-
 # Historias de usuario
 
 El desarrollo del proyecto se basó en historias de usuario organizadas por épicas y prioridades, siguiendo un enfoque ágil.
 
-## Historias de usuario
-
-El desarrollo del proyecto se basó en historias de usuario organizadas por épicas y prioridades.
 
 | ID  | Historia de Usuario | Épica | Prioridad |
 |-----|--------------------|-------|----------|
@@ -68,10 +57,10 @@ Sistema de recomendaciones personalizadas
 Mejoras en rendimiento y escalabilidad
 Integración completa con backend
 
-Licencia
+# Licencia
 
 Este proyecto está bajo la licencia MIT.
 
-Autor
+# Autor
 
 Desarrollado por Andres Cifuentes, Juan MAnuel Ospina
