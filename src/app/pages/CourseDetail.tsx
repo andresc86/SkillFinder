@@ -27,6 +27,7 @@ interface Lesson {
   id: string;
   title: string;
   duration: string;
+  videoUrl?: string;
   completed?: boolean;
 }
 
@@ -56,6 +57,7 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [startedCourse, setStartedCourse] = useState(() => hasStartedCourse(id || ''));
   const [saved, setSaved] = useState(() => isCourseSaved(id || ''));
+  const [activeLessonIndex, setActiveLessonIndex] = useState(0);
 
   useEffect(() => {
     const unsubscribe = subscribeToSkillFinderUpdates(() => {
@@ -82,6 +84,7 @@ export default function CourseDetail() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
+          const lessons = Array.isArray(data.lessons) ? data.lessons : [];
 
           setCourse({
             id: docSnap.id,
@@ -93,13 +96,14 @@ export default function CourseDetail() {
             isPaid: data.isPaid || false,
             price: data.price || 0,
             image: data.image || '',
-            lessons: Array.isArray(data.lessons) ? data.lessons : [],
+            lessons,
             tags: Array.isArray(data.tags) ? data.tags : [],
             creator: data.creator || { name: 'Autor de SkillFinder' },
             rating: data.rating ?? 4.8,
             reviews: data.reviews ?? 12,
             students: data.students ?? 35,
           });
+          setActiveLessonIndex(0);
         } else {
           setCourse(null);
         }
@@ -118,6 +122,7 @@ export default function CourseDetail() {
     () => getLessonsDuration(course?.lessons || []),
     [course]
   );
+  const activeLesson = course?.lessons[activeLessonIndex] ?? null;
 
   if (loading) {
     return (
@@ -137,7 +142,7 @@ export default function CourseDetail() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Curso no encontrado</h1>
           <Link to="/search" className="text-purple-600 hover:text-purple-700">
-            Volver a la búsqueda
+            Volver a la busqueda
           </Link>
         </div>
       </div>
@@ -166,19 +171,30 @@ export default function CourseDetail() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="relative aspect-video rounded-2xl overflow-hidden bg-gray-900 mb-6">
-              <img
-                src={course.image}
-                alt={course.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                <button
-                  className="w-20 h-20 bg-white rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                  type="button"
-                >
-                  <Play className="w-10 h-10 text-purple-600 ml-1" />
-                </button>
-              </div>
+              {activeLesson?.videoUrl ? (
+                <video
+                  key={activeLesson.id}
+                  src={activeLesson.videoUrl}
+                  controls
+                  className="w-full h-full object-cover bg-black"
+                />
+              ) : (
+                <>
+                  <img
+                    src={course.image}
+                    alt={course.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <button
+                      className="w-20 h-20 bg-white rounded-full flex items-center justify-center"
+                      type="button"
+                    >
+                      <Play className="w-10 h-10 text-purple-600 ml-1" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 md:p-8 mb-6 border border-gray-200">
@@ -222,7 +238,7 @@ export default function CourseDetail() {
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   <span className="font-medium text-gray-900">{course.rating ?? 4.8}</span>
-                  <span>({course.reviews ?? 12} reseñas)</span>
+                  <span>({course.reviews ?? 12} resenas)</span>
                 </div>
               </div>
 
@@ -242,7 +258,12 @@ export default function CourseDetail() {
                 {course.lessons.map((lesson, index) => (
                   <div
                     key={lesson.id}
-                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                    className={`flex items-center gap-4 p-4 rounded-xl transition-colors cursor-pointer ${
+                      index === activeLessonIndex
+                        ? 'bg-purple-50 border border-purple-200'
+                        : 'bg-gray-50 hover:bg-gray-100 border border-transparent'
+                    }`}
+                    onClick={() => setActiveLessonIndex(index)}
                   >
                     <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
                       {lesson.completed ? (
@@ -253,9 +274,16 @@ export default function CourseDetail() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium text-gray-900">{lesson.title}</h3>
-                      <p className="text-sm text-gray-500">{lesson.duration}</p>
+                      <p className="text-sm text-gray-500">
+                        {lesson.duration}
+                        {lesson.videoUrl ? ' • Video disponible' : ' • Sin video'}
+                      </p>
                     </div>
-                    <Play className="w-5 h-5 text-gray-400" />
+                    <Play
+                      className={`w-5 h-5 ${
+                        lesson.videoUrl ? 'text-purple-600' : 'text-gray-400'
+                      }`}
+                    />
                   </div>
                 ))}
               </div>
@@ -283,7 +311,7 @@ export default function CourseDetail() {
                     ))}
                   </div>
                   <div className="text-sm text-gray-500">
-                    {course.reviews ?? 12} reseñas
+                    {course.reviews ?? 12} resenas
                   </div>
                 </div>
               </div>
@@ -298,7 +326,7 @@ export default function CourseDetail() {
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">Patricia Rodríguez</h4>
+                        <h4 className="font-medium text-gray-900">Patricia Rodriguez</h4>
                         <div className="flex items-center gap-1">
                           {[...Array(5)].map((_, i) => (
                             <Star
@@ -309,10 +337,10 @@ export default function CourseDetail() {
                         </div>
                       </div>
                       <p className="text-gray-700 text-sm">
-                        Excelente curso, muy práctico y fácil de seguir. Las
-                        explicaciones son claras y los ejemplos muy útiles.
+                        Excelente curso, muy practico y facil de seguir. Las
+                        explicaciones son claras y los ejemplos muy utiles.
                       </p>
-                      <p className="text-xs text-gray-500 mt-2">Hace 2 días</p>
+                      <p className="text-xs text-gray-500 mt-2">Hace 2 dias</p>
                     </div>
                   </div>
                 </div>
@@ -326,7 +354,7 @@ export default function CourseDetail() {
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">Roberto Jiménez</h4>
+                        <h4 className="font-medium text-gray-900">Roberto Jimenez</h4>
                         <div className="flex items-center gap-1">
                           {[...Array(4)].map((_, i) => (
                             <Star
@@ -338,7 +366,7 @@ export default function CourseDetail() {
                         </div>
                       </div>
                       <p className="text-gray-700 text-sm">
-                        Muy bueno, aprendí mucho. Lo recomiendo para principiantes.
+                        Muy bueno, aprendi mucho. Lo recomiendo para principiantes.
                       </p>
                       <p className="text-xs text-gray-500 mt-2">Hace 1 semana</p>
                     </div>
@@ -356,7 +384,7 @@ export default function CourseDetail() {
                 </h3>
                 <p className="text-sm text-gray-600">
                   Curso listo para empezar con {course.lessons.length} lecciones y una
-                  duración aproximada de {Math.round(totalLessonsDuration)} minutos.
+                  duracion aproximada de {Math.round(totalLessonsDuration)} minutos.
                 </p>
               </div>
 
@@ -382,7 +410,7 @@ export default function CourseDetail() {
                       saved ? 'fill-purple-600 text-purple-600' : ''
                     }`}
                   />
-                  {saved ? 'Guardado en tu perfil' : 'Guardar para después'}
+                  {saved ? 'Guardado en tu perfil' : 'Guardar para despues'}
                 </button>
               </div>
 
@@ -398,7 +426,7 @@ export default function CourseDetail() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Duración total</span>
+                  <span>Duracion total</span>
                   <span className="font-medium text-gray-900">{course.duration}</span>
                 </div>
                 <div className="flex items-center justify-between">

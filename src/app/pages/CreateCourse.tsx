@@ -11,6 +11,8 @@ interface LessonForm {
   id: string;
   title: string;
   duration: string;
+  videoUrl?: string;
+  videoName?: string;
 }
 
 interface FormErrors {
@@ -25,6 +27,7 @@ interface FormErrors {
 
 const defaultImage =
   'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200';
+const MAX_VIDEO_SIZE_MB = 50;
 
 export default function CreateCourse() {
   const navigate = useNavigate();
@@ -40,7 +43,12 @@ export default function CreateCourse() {
   });
 
   const [lessons, setLessons] = useState<LessonForm[]>([]);
-  const [newLesson, setNewLesson] = useState({ title: '', duration: '' });
+  const [newLesson, setNewLesson] = useState({
+    title: '',
+    duration: '',
+    videoUrl: '',
+    videoName: '',
+  });
   const [imagePreview, setImagePreview] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
@@ -71,7 +79,7 @@ export default function CreateCourse() {
     if (!file.type.startsWith('image/')) {
       setErrors((prev) => ({
         ...prev,
-        image: 'Sube un archivo de imagen válido.',
+        image: 'Sube un archivo de imagen valido.',
       }));
       return;
     }
@@ -84,11 +92,56 @@ export default function CreateCourse() {
     reader.readAsDataURL(file);
   };
 
+  const handleLessonVideoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      setErrors((prev) => ({
+        ...prev,
+        lessons: 'Sube un archivo de video valido para la leccion.',
+      }));
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+      setErrors((prev) => ({
+        ...prev,
+        lessons: `El video de la leccion no puede superar ${MAX_VIDEO_SIZE_MB} MB.`,
+      }));
+      return;
+    }
+
+    const videoUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string) || '');
+      reader.onerror = () => reject(new Error('No se pudo leer el video.'));
+      reader.readAsDataURL(file);
+    }).catch(() => '');
+
+    if (!videoUrl) {
+      setErrors((prev) => ({
+        ...prev,
+        lessons: 'No se pudo cargar el video de la leccion.',
+      }));
+      return;
+    }
+
+    setNewLesson((prev) => ({
+      ...prev,
+      videoUrl,
+      videoName: file.name,
+    }));
+    setErrors((prev) => ({ ...prev, lessons: undefined }));
+  };
+
   const addLesson = () => {
     if (!newLesson.title.trim() || !newLesson.duration.trim()) {
       setErrors((prev) => ({
         ...prev,
-        lessons: 'Cada lección necesita título y duración.',
+        lessons: 'Cada leccion necesita titulo y duracion.',
       }));
       return;
     }
@@ -97,7 +150,7 @@ export default function CreateCourse() {
       ...prev,
       { ...newLesson, id: Date.now().toString() },
     ]);
-    setNewLesson({ title: '', duration: '' });
+    setNewLesson({ title: '', duration: '', videoUrl: '', videoName: '' });
     setErrors((prev) => ({ ...prev, lessons: undefined }));
   };
 
@@ -109,7 +162,7 @@ export default function CreateCourse() {
     const nextErrors: FormErrors = {};
 
     if (!formData.title.trim() || formData.title.trim().length < 8) {
-      nextErrors.title = 'Pon un título más claro, de al menos 8 caracteres.';
+      nextErrors.title = 'Pon un titulo mas claro, de al menos 8 caracteres.';
     }
 
     if (!formData.description.trim() || formData.description.trim().length < 40) {
@@ -118,7 +171,7 @@ export default function CreateCourse() {
     }
 
     if (!formData.category.trim()) {
-      nextErrors.category = 'Selecciona una categoría.';
+      nextErrors.category = 'Selecciona una categoria.';
     }
 
     if (!formData.level.trim()) {
@@ -132,12 +185,12 @@ export default function CreateCourse() {
     if (formData.isPaid) {
       const priceNumber = Number(formData.price);
       if (!formData.price || Number.isNaN(priceNumber) || priceNumber <= 0) {
-        nextErrors.price = 'Ingresa un precio válido mayor que 0.';
+        nextErrors.price = 'Ingresa un precio valido mayor que 0.';
       }
     }
 
     if (lessons.length === 0) {
-      nextErrors.lessons = 'Agrega al menos una lección antes de publicar.';
+      nextErrors.lessons = 'Agrega al menos una leccion antes de publicar.';
     }
 
     setErrors(nextErrors);
@@ -204,7 +257,7 @@ export default function CreateCourse() {
             <div>
               <p className="font-semibold">Curso publicado</p>
               <p className="text-sm">
-                El curso se guardó en Firebase y te estoy llevando a la vista del
+                El curso se guardo en Firebase y te estoy llevando a la vista del
                 curso.
               </p>
             </div>
@@ -218,7 +271,7 @@ export default function CreateCourse() {
                 Imagen del curso
               </span>
               <p className="text-sm text-gray-500 mb-3">
-                Sube una portada atractiva para darle más realismo al proyecto.
+                Sube una portada atractiva para darle mas realismo al proyecto.
               </p>
             </label>
 
@@ -266,7 +319,7 @@ export default function CreateCourse() {
                 htmlFor="title"
                 className="block text-sm font-medium text-gray-900 mb-2"
               >
-                Título del curso
+                Titulo del curso
               </label>
               <input
                 id="title"
@@ -287,7 +340,7 @@ export default function CreateCourse() {
                 htmlFor="description"
                 className="block text-sm font-medium text-gray-900 mb-2"
               >
-                Descripción
+                Descripcion
               </label>
               <textarea
                 id="description"
@@ -295,7 +348,7 @@ export default function CreateCourse() {
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={5}
-                placeholder="Explica qué aprenderá la persona, cómo está estructurado el curso y para quién es útil."
+                placeholder="Explica que aprendera la persona, como esta estructurado el curso y para quien es util."
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               />
               {errors.description && (
@@ -311,7 +364,7 @@ export default function CreateCourse() {
                   htmlFor="category"
                   className="block text-sm font-medium text-gray-900 mb-2"
                 >
-                  Categoría
+                  Categoria
                 </label>
                 <select
                   id="category"
@@ -320,7 +373,7 @@ export default function CreateCourse() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value="">Selecciona una categoría</option>
+                  <option value="">Selecciona una categoria</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.name}>
                       {category.name}
@@ -373,7 +426,7 @@ export default function CreateCourse() {
                     Curso de pago
                   </span>
                   <p className="text-sm text-gray-500">
-                    Actívalo si quieres mostrarlo como contenido premium.
+                    Activalo si quieres mostrarlo como contenido premium.
                   </p>
                 </div>
               </label>
@@ -416,11 +469,11 @@ export default function CreateCourse() {
                 type="text"
                 value={formData.tags}
                 onChange={handleInputChange}
-                placeholder="Ej: figma, diseño, interfaz"
+                placeholder="Ej: figma, diseno, interfaz"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <p className="mt-2 text-sm text-gray-500">
-                Sepáralas por coma para mejorar la búsqueda del curso.
+                Separalas por coma para mejorar la busqueda del curso.
               </p>
             </div>
           </div>
@@ -432,7 +485,7 @@ export default function CreateCourse() {
                   Lecciones del curso
                 </h2>
                 <p className="text-sm text-gray-500">
-                  Duración total estimada: {lessons.length ? totalDuration : '0 min'}
+                  Duracion total estimada: {lessons.length ? totalDuration : '0 min'}
                 </p>
               </div>
 
@@ -444,14 +497,14 @@ export default function CreateCourse() {
               )}
             </div>
 
-            <div className="grid md:grid-cols-[1fr_160px_auto] gap-4 mb-4">
+            <div className="grid md:grid-cols-2 gap-4 mb-4">
               <input
                 type="text"
                 value={newLesson.title}
                 onChange={(e) =>
                   setNewLesson((prev) => ({ ...prev, title: e.target.value }))
                 }
-                placeholder="Título de la lección"
+                placeholder="Titulo de la leccion"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <input
@@ -463,6 +516,27 @@ export default function CreateCourse() {
                 placeholder="Ej: 8 min"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
+            </div>
+
+            <div className="grid md:grid-cols-[1fr_auto] gap-4 mb-4">
+              <label className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-gray-300 px-4 py-3 cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-colors">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900">
+                    {newLesson.videoName || 'Subir video de la leccion'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    MP4, WEBM u otro formato de video. Maximo {MAX_VIDEO_SIZE_MB} MB.
+                  </p>
+                </div>
+                <Upload className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleLessonVideoUpload}
+                  className="hidden"
+                />
+              </label>
+
               <button
                 type="button"
                 onClick={addLesson}
@@ -472,6 +546,39 @@ export default function CreateCourse() {
                 Agregar
               </button>
             </div>
+
+            {newLesson.videoUrl && (
+              <div className="mb-4 rounded-xl border border-gray-200 p-4 bg-gray-50">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">
+                      {newLesson.videoName || 'Video cargado'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Este video se guardara dentro de la leccion.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewLesson((prev) => ({
+                        ...prev,
+                        videoUrl: '',
+                        videoName: '',
+                      }))
+                    }
+                    className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-red-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <video
+                  src={newLesson.videoUrl}
+                  controls
+                  className="w-full rounded-xl bg-black"
+                />
+              </div>
+            )}
 
             <div className="space-y-3">
               {lessons.map((lesson, index) => (
@@ -486,7 +593,10 @@ export default function CreateCourse() {
                     <p className="font-medium text-gray-900 truncate">
                       {lesson.title}
                     </p>
-                    <p className="text-sm text-gray-500">{lesson.duration}</p>
+                    <p className="text-sm text-gray-500">
+                      {lesson.duration}
+                      {lesson.videoUrl ? ' • Con video' : ' • Sin video'}
+                    </p>
                   </div>
                   <button
                     type="button"
