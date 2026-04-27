@@ -2,14 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import { Edit, BookMarked, Clock, Trophy, BookOpen, Save } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { CourseCard } from '../components/CourseCard';
-import { getAllCourses, getProfile, getPublishedCourses, subscribeToSkillFinderUpdates, updateProfile } from '../lib/courseStore';
+import { getAllCourses, getFirebaseCourses, getProfile, subscribeToSkillFinderUpdates, updateProfile } from '../lib/courseStore';
+import type { Course } from '../data/mockData';
 
 export default function UserProfile() {
   const [version, setVersion] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [firebaseCourses, setFirebaseCourses] = useState<Course[]>([]);
   const profile = useMemo(() => getProfile(), [version]);
-  const allCourses = useMemo(() => getAllCourses(), [version]);
-  const publishedCourses = useMemo(() => getPublishedCourses(), [version]);
+  const allCourses = useMemo(() => {
+    const remoteIds = new Set(firebaseCourses.map((course) => course.id));
+    return [...firebaseCourses, ...getAllCourses().filter((course) => !remoteIds.has(course.id))];
+  }, [firebaseCourses, version]);
+  const publishedCourses = useMemo(
+    () => allCourses.filter((course) => course.creator.name === profile.name),
+    [allCourses, profile.name]
+  );
   const [draftProfile, setDraftProfile] = useState({
     name: profile.name,
     email: profile.email,
@@ -18,6 +26,27 @@ export default function UserProfile() {
   });
 
   useEffect(() => subscribeToSkillFinderUpdates(() => setVersion((value) => value + 1)), []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFirebaseCourses = async () => {
+      try {
+        const courses = await getFirebaseCourses();
+        if (mounted) {
+          setFirebaseCourses(courses);
+        }
+      } catch (error) {
+        console.error('No se pudieron cargar los cursos del perfil:', error);
+      }
+    };
+
+    loadFirebaseCourses();
+
+    return () => {
+      mounted = false;
+    };
+  }, [version]);
 
   useEffect(() => {
     setDraftProfile({

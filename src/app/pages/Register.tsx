@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Search, UserPlus, CircleAlert, CheckCircle2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../../services/firebaseConfig';
 
 export default function Register() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -69,7 +71,7 @@ export default function Register() {
       setSuccess('Cuenta creada correctamente.');
 
       window.setTimeout(() => {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }, 1200);
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {

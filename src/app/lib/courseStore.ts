@@ -1,7 +1,8 @@
+import { collection, getDocs } from 'firebase/firestore';
+import { auth, db } from '../../services/firebaseConfig';
 import { categories, mockCourses, userProfile, type Course, type Lesson } from '../data/mockData';
 
 const CREATED_COURSES_KEY = 'skillfinder.createdCourses';
-const SAVED_COURSES_KEY = 'skillfinder.savedCourses';
 const STARTED_COURSES_KEY = 'skillfinder.startedCourses';
 const PROFILE_KEY = 'skillfinder.profile';
 const STORAGE_EVENT = 'skillfinder:update';
@@ -9,15 +10,15 @@ const STORAGE_EVENT = 'skillfinder:update';
 export const levelOptions: Course['level'][] = ['Principiante', 'Intermedio', 'Avanzado'];
 export const pricingOptions = ['Gratis', 'Pago'] as const;
 export const durationOptions = [
-  { value: 'short', label: 'Corto (≤15 min)' },
+  { value: 'short', label: 'Corto (<=15 min)' },
   { value: 'medium', label: 'Medio (15-30 min)' },
   { value: 'long', label: 'Largo (>30 min)' },
 ] as const;
 export const sortOptions = [
-  { value: 'relevance', label: 'Más relevantes' },
+  { value: 'relevance', label: 'Mas relevantes' },
   { value: 'rating', label: 'Mejor valorados' },
-  { value: 'recent', label: 'Más recientes' },
-  { value: 'duration', label: 'Más cortos primero' },
+  { value: 'recent', label: 'Mas recientes' },
+  { value: 'duration', label: 'Mas cortos primero' },
   { value: 'price-asc', label: 'Menor precio' },
 ] as const;
 
@@ -34,9 +35,13 @@ export interface UserProfileState {
 
 const defaultProfile: UserProfileState = {
   ...userProfile,
-  bio: 'Aprendiz constante y creador de cursos prácticos para la vida diaria.',
+  bio: 'Aprendiz constante y creador de cursos practicos para la vida diaria.',
   headline: 'Estudiante y creador en SkillFinder',
 };
+
+function buildDefaultAvatar(name: string) {
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || 'SkillFinder')}`;
+}
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -109,11 +114,82 @@ function createShortDescription(description: string) {
   return description.length > 90 ? `${description.slice(0, 87).trim()}...` : description;
 }
 
-export function getProfile() {
-  return readJson<UserProfileState>(PROFILE_KEY, defaultProfile);
+function parseLessonsField(rawLessons: unknown): Lesson[] {
+  if (Array.isArray(rawLessons)) {
+    return rawLessons as Lesson[];
+  }
+
+  if (typeof rawLessons === 'string') {
+    try {
+      const parsed = JSON.parse(rawLessons);
+      return Array.isArray(parsed) ? (parsed as Lesson[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 }
 
-export function updateProfile(profilePatch: Partial<Pick<UserProfileState, 'name' | 'email' | 'avatar' | 'bio' | 'headline'>>) {
+function normalizeFirebaseCourse(id: string, data: Record<string, unknown>): Course {
+  const lessons = parseLessonsField(data.lessons);
+  const creator = (data.creator as Course['creator'] | undefined) ?? {
+    name: 'Autor de SkillFinder',
+    avatar: buildDefaultAvatar('SkillFinder'),
+  };
+
+  return {
+    id,
+    title: String(data.title ?? ''),
+    description: String(data.description ?? ''),
+    shortDescription: String(
+      data.shortDescription ?? createShortDescription(String(data.description ?? ''))
+    ),
+    image: String(data.image ?? ''),
+    category: String(data.category ?? ''),
+    level: (data.level as Course['level']) ?? 'Principiante',
+    duration: String(data.duration ?? '0 min'),
+    isPaid: Boolean(data.isPaid),
+    price: typeof data.price === 'number' ? data.price : undefined,
+    creator,
+    rating: typeof data.rating === 'number' ? data.rating : 5,
+    reviews: typeof data.reviews === 'number' ? data.reviews : 0,
+    lessons,
+    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+    students: typeof data.students === 'number' ? data.students : 0,
+    createdAt: String(data.createdAt ?? new Date().toISOString()),
+  };
+}
+
+export function getProfile() {
+  const storedProfile = readJson<UserProfileState>(PROFILE_KEY, defaultProfile);
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    return storedProfile;
+  }
+
+  const shouldUseAuthName = !storedProfile.name || storedProfile.name === defaultProfile.name;
+  const shouldUseAuthEmail = !storedProfile.email || storedProfile.email === defaultProfile.email;
+  const shouldUseAuthAvatar =
+    !storedProfile.avatar || storedProfile.avatar === defaultProfile.avatar;
+
+  const authName =
+    currentUser.displayName?.trim() || storedProfile.name || 'Usuario SkillFinder';
+  const authEmail = currentUser.email?.trim() || storedProfile.email;
+  const authAvatar = currentUser.photoURL || buildDefaultAvatar(authName);
+
+  return {
+    ...storedProfile,
+    name: shouldUseAuthName ? authName : storedProfile.name,
+    email: shouldUseAuthEmail ? authEmail : storedProfile.email,
+    avatar: shouldUseAuthAvatar ? authAvatar : storedProfile.avatar,
+  };
+}
+
+export function updateProfile(
+  profilePatch: Partial<Pick<UserProfileState, 'name' | 'email' | 'avatar' | 'bio' | 'headline'>>
+) {
   const updatedProfile = { ...getProfile(), ...profilePatch };
   writeJson(PROFILE_KEY, updatedProfile);
   emitSkillFinderUpdate();
@@ -172,6 +248,13 @@ export function hasStartedCourse(courseId: string) {
 
 export function getCreatedCourses() {
   return readJson<Course[]>(CREATED_COURSES_KEY, []);
+}
+
+export async function getFirebaseCourses() {
+  const snapshot = await getDocs(collection(db, 'courses'));
+  return snapshot.docs.map((doc) =>
+    normalizeFirebaseCourse(doc.id, doc.data() as Record<string, unknown>)
+  );
 }
 
 export function getAllCourses() {
@@ -267,8 +350,5 @@ export function getAvailableCategories() {
     .map((course) => course.category)
     .filter((category) => !categories.some((item) => item.name === category));
 
-  return [
-    ...categories.map((category) => category.name),
-    ...dynamicCategories,
-  ];
+  return [...categories.map((category) => category.name), ...dynamicCategories];
 }

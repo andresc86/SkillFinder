@@ -3,7 +3,7 @@ import { Upload, Plus, X, CircleAlert, CheckCircle2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { categories } from '../data/mockData';
-import { formatMinutes, getLessonsDuration, levelOptions } from '../lib/courseStore';
+import { formatMinutes, getLessonsDuration, getProfile, levelOptions } from '../lib/courseStore';
 import { db } from '../../services/firebaseConfig';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -13,6 +13,13 @@ interface LessonForm {
   duration: string;
   videoUrl?: string;
   videoName?: string;
+}
+
+interface FirestoreLesson {
+  id: string;
+  title: string;
+  duration: string;
+  videoUrl?: string;
 }
 
 interface FormErrors {
@@ -28,6 +35,26 @@ interface FormErrors {
 const defaultImage =
   'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200';
 const MAX_VIDEO_SIZE_MB = 50;
+
+function createShortDescription(description: string) {
+  return description.length > 90 ? `${description.slice(0, 87).trim()}...` : description;
+}
+
+function sanitizeLessons(lessons: LessonForm[]): FirestoreLesson[] {
+  return lessons.map((lesson) => {
+    const sanitizedLesson: FirestoreLesson = {
+      id: lesson.id,
+      title: lesson.title,
+      duration: lesson.duration,
+    };
+
+    if (lesson.videoUrl) {
+      sanitizedLesson.videoUrl = lesson.videoUrl;
+    }
+
+    return sanitizedLesson;
+  });
+}
 
 export default function CreateCourse() {
   const navigate = useNavigate();
@@ -204,22 +231,36 @@ export default function CreateCourse() {
 
     try {
       setStatus('saving');
+      const profile = getProfile();
+      const normalizedDescription = formData.description.trim();
+      const normalizedTags = formData.tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      const createdAt = new Date().toISOString();
+      const sanitizedLessons = sanitizeLessons(lessons);
 
       const docRef = await addDoc(collection(db, 'courses'), {
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: normalizedDescription,
+        shortDescription: createShortDescription(normalizedDescription),
         category: formData.category,
         level: formData.level,
         duration: totalDuration,
         isPaid: formData.isPaid,
         price: formData.isPaid ? Number(formData.price) : 0,
         image: imagePreview || defaultImage,
-        lessons,
-        tags: formData.tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-        createdAt: serverTimestamp(),
+        creator: {
+          name: profile.name,
+          avatar: profile.avatar,
+        },
+        rating: 5,
+        reviews: 0,
+        students: 0,
+        lessons: JSON.stringify(sanitizedLessons),
+        tags: normalizedTags,
+        createdAt,
+        createdAtServer: serverTimestamp(),
       });
 
       console.log('Curso guardado con ID:', docRef.id);

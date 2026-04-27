@@ -51,6 +51,23 @@ interface Course {
   students?: number;
 }
 
+function parseLessons(rawLessons: unknown): Lesson[] {
+  if (Array.isArray(rawLessons)) {
+    return rawLessons as Lesson[];
+  }
+
+  if (typeof rawLessons === 'string') {
+    try {
+      const parsed = JSON.parse(rawLessons);
+      return Array.isArray(parsed) ? (parsed as Lesson[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
 export default function CourseDetail() {
   const { id } = useParams();
   const [course, setCourse] = useState<Course | null>(null);
@@ -84,7 +101,7 @@ export default function CourseDetail() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          const lessons = Array.isArray(data.lessons) ? data.lessons : [];
+          const lessons = parseLessons(data.lessons);
 
           setCourse({
             id: docSnap.id,

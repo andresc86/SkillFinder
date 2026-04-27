@@ -1,6 +1,9 @@
-import { Link } from 'react-router';
-import { Search, User, Menu, X, BookOpen, LogIn, UserPlus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
+import { Search, User, Menu, X, BookOpen, LogIn, UserPlus, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../services/firebaseConfig';
+import { useAuthUser } from '../hooks/useAuthUser';
 
 interface NavbarProps {
   showSearch?: boolean;
@@ -16,10 +19,22 @@ export function Navbar({
   onSearch,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuthUser();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch?.();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setMobileMenuOpen(false);
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('No se pudo cerrar sesion:', error);
+    }
   };
 
   return (
@@ -54,7 +69,7 @@ export function Navbar({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => onSearchChange?.(e.target.value)}
-                  placeholder="¿Qué quieres aprender hoy?"
+                  placeholder="Que quieres aprender hoy?"
                   className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <Search
@@ -79,29 +94,42 @@ export function Navbar({
               className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors"
             >
               <User className="w-5 h-5" />
-              <span>Perfil</span>
+              <span>{user?.displayName || 'Perfil'}</span>
             </Link>
 
-            <Link
-              to="/login"
-              className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors"
-            >
-              <LogIn className="w-5 h-5" />
-              <span>Login</span>
-            </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl transition-colors font-medium"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Cerrar sesion</span>
+              </button>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors"
+                >
+                  <LogIn className="w-5 h-5" />
+                  <span>Login</span>
+                </Link>
 
-            <Link
-              to="/register"
-              className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition-colors font-medium"
-            >
-              <UserPlus className="w-5 h-5" />
-              <span>Registro</span>
-            </Link>
+                <Link
+                  to="/register"
+                  className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  <span>Registro</span>
+                </Link>
+              </>
+            )}
           </div>
 
           <button
             type="button"
-            aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+            aria-label={mobileMenuOpen ? 'Cerrar menu' : 'Abrir menu'}
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-lg hover:bg-gray-100"
@@ -121,7 +149,7 @@ export function Navbar({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder="¿Qué quieres aprender hoy?"
+                placeholder="Que quieres aprender hoy?"
                 className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
               <Search
@@ -150,26 +178,39 @@ export function Navbar({
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <User className="w-5 h-5" />
-                <span>Perfil</span>
+                <span>{user?.displayName || 'Perfil'}</span>
               </Link>
 
-              <Link
-                to="/login"
-                className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <LogIn className="w-5 h-5" />
-                <span>Login</span>
-              </Link>
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center justify-center gap-2 bg-gray-900 hover:bg-black text-white px-4 py-3 rounded-xl transition-colors font-medium"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span>Cerrar sesion</span>
+                </button>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="flex items-center gap-2 text-gray-700 hover:text-purple-600 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <LogIn className="w-5 h-5" />
+                    <span>Login</span>
+                  </Link>
 
-              <Link
-                to="/register"
-                className="inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl transition-colors font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <UserPlus className="w-5 h-5" />
-                <span>Registro</span>
-              </Link>
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl transition-colors font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    <span>Registro</span>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}
