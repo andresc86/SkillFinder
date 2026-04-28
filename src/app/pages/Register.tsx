@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Search, UserPlus, CircleAlert, CheckCircle2 } from 'lucide-react';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendEmailVerification,
+} from 'firebase/auth';
 import { auth } from '../../services/firebaseConfig';
 
 export default function Register() {
@@ -66,11 +70,13 @@ export default function Register() {
         displayName: formData.name.trim(),
       });
 
-      setSuccess('Cuenta creada correctamente.');
+      await sendEmailVerification(userCredential.user);
+
+      setSuccess('Cuenta creada. Revisa tu correo para verificar tu cuenta.');
 
       window.setTimeout(() => {
         navigate('/');
-      }, 1200);
+      }, 2000);
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         setError('Ese correo ya está registrado.');
@@ -189,7 +195,10 @@ export default function Register() {
 
           <p className="text-sm text-gray-600 text-center mt-6">
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="text-purple-600 font-medium hover:text-purple-700">
+            <Link
+              to="/login"
+              className="text-purple-600 font-medium hover:text-purple-700"
+            >
               Inicia sesión
             </Link>
           </p>

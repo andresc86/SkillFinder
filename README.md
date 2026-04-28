@@ -12,3 +12,5 @@ Proyecto web tipo plataforma de cursos, pensado para que cualquier persona pueda
 
 ## Lo que se mejoró
 - Se mejoró la funcionalidad de la plataforma permitiendo crear y guardar cursos, mejorar la búsqueda con filtros, ordenar resultados y gestionar cursos desde el perfil. Además, se optimizó la experiencia de usuario con validaciones más claras, mejor navegación y pequeños ajustes de rendimiento.
+
+prueba
