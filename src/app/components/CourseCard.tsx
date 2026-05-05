@@ -73,8 +73,14 @@ export function CourseCard({ course }: CourseCardProps) {
             <span>{course.duration}</span>
           </div>
           <div className="flex items-center gap-1">
-            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-medium text-gray-900">{course.rating}</span>
+            <Star
+              className={`w-4 h-4 ${
+                course.reviews > 0 ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+              }`}
+            />
+            <span className="font-medium text-gray-900">
+              {course.reviews > 0 ? course.rating.toFixed(1) : 'Nueva'}
+            </span>
             <span>({course.reviews})</span>
           </div>
         </div>

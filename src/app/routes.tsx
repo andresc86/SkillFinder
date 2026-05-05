@@ -35,6 +35,14 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/course/:id/edit',
+    element: (
+      <ProtectedRoute>
+        <CreateCourse />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/profile',
     element: (
       <ProtectedRoute>

@@ -12,6 +12,8 @@ export interface Course {
   creator: {
     name: string;
     avatar: string;
+    uid?: string;
+    email?: string;
   };
   rating: number;
   reviews: number;

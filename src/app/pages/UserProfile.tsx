@@ -1,23 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit, BookMarked, Clock, Trophy, BookOpen, Save } from 'lucide-react';
+import { Link } from 'react-router';
+import { Edit, BookMarked, Clock, Trophy, BookOpen, Save, Upload, Pencil, Trash2 } from 'lucide-react';
+import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import { Navbar } from '../components/Navbar';
 import { CourseCard } from '../components/CourseCard';
-import { getAllCourses, getFirebaseCourses, getProfile, subscribeToSkillFinderUpdates, updateProfile } from '../lib/courseStore';
+import { useAuthUser } from '../hooks/useAuthUser';
+import { uploadToCloudinary } from '../lib/cloudinary';
+import {
+  deleteFirebaseCourse,
+  getAllCourses,
+  getFirebaseCourses,
+  getProfile,
+  getPublishedCourses,
+  subscribeToSkillFinderUpdates,
+  updateProfile,
+} from '../lib/courseStore';
+import { auth } from '../../services/firebaseConfig';
 import type { Course } from '../data/mockData';
 
+const MAX_AVATAR_SIZE_MB = 3;
+
 export default function UserProfile() {
+  const { user, loading: authLoading } = useAuthUser();
   const [version, setVersion] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [firebaseCourses, setFirebaseCourses] = useState<Course[]>([]);
-  const profile = useMemo(() => getProfile(), [version]);
+  const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const profile = useMemo(() => getProfile(), [user, version]);
   const allCourses = useMemo(() => {
     const remoteIds = new Set(firebaseCourses.map((course) => course.id));
     return [...firebaseCourses, ...getAllCourses().filter((course) => !remoteIds.has(course.id))];
   }, [firebaseCourses, version]);
-  const publishedCourses = useMemo(
-    () => allCourses.filter((course) => course.creator.name === profile.name),
-    [allCourses, profile.name]
-  );
   const [draftProfile, setDraftProfile] = useState({
     name: profile.name,
     email: profile.email,
@@ -28,25 +45,25 @@ export default function UserProfile() {
   useEffect(() => subscribeToSkillFinderUpdates(() => setVersion((value) => value + 1)), []);
 
   useEffect(() => {
-    let mounted = true;
+    if (authLoading) return;
 
-    const loadFirebaseCourses = async () => {
+    const loadCourses = async () => {
       try {
-        const courses = await getFirebaseCourses();
-        if (mounted) {
-          setFirebaseCourses(courses);
-        }
+        const [courses, ownCourses] = await Promise.all([
+          getFirebaseCourses(),
+          getPublishedCourses(),
+        ]);
+        setFirebaseCourses(courses);
+        setPublishedCourses(ownCourses);
       } catch (error) {
         console.error('No se pudieron cargar los cursos del perfil:', error);
+        setFirebaseCourses([]);
+        setPublishedCourses([]);
       }
     };
 
-    loadFirebaseCourses();
-
-    return () => {
-      mounted = false;
-    };
-  }, [version]);
+    loadCourses();
+  }, [authLoading, user, version]);
 
   useEffect(() => {
     setDraftProfile({
@@ -55,6 +72,7 @@ export default function UserProfile() {
       headline: profile.headline,
       bio: profile.bio,
     });
+    setAvatarPreview(profile.avatar);
   }, [profile]);
 
   const savedCourses = allCourses.filter((course) => profile.savedCourses.includes(course.id));
@@ -66,6 +84,80 @@ export default function UserProfile() {
     })
     .filter((item) => item.course);
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Sube una imagen valida para el perfil.');
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_MB * 1024 * 1024) {
+      alert(`La foto de perfil no puede superar ${MAX_AVATAR_SIZE_MB} MB.`);
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+
+      let uploadedAvatar = profile.avatar;
+      if (avatarFile) {
+        uploadedAvatar = await uploadToCloudinary(avatarFile, 'image');
+      }
+
+      updateProfile({
+        name: draftProfile.name.trim(),
+        email: draftProfile.email.trim(),
+        headline: draftProfile.headline.trim(),
+        bio: draftProfile.bio.trim(),
+        avatar: uploadedAvatar,
+      });
+
+      if (auth.currentUser) {
+        await updateAuthProfile(auth.currentUser, {
+          displayName: draftProfile.name.trim(),
+          photoURL: uploadedAvatar,
+        });
+      }
+
+      setAvatarFile(null);
+      setIsEditing(false);
+      setVersion((value) => value + 1);
+    } catch (error) {
+      console.error('No se pudo guardar el perfil:', error);
+      alert('No se pudo actualizar el perfil.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleDeleteCourse = async (course: Course) => {
+    const confirmed = window.confirm(
+      `¿Seguro que quieres eliminar "${course.title}"? Esta accion no se puede deshacer.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingCourseId(course.id);
+      await deleteFirebaseCourse(course.id);
+      setPublishedCourses((prev) => prev.filter((item) => item.id !== course.id));
+      setFirebaseCourses((prev) => prev.filter((item) => item.id !== course.id));
+      setVersion((value) => value + 1);
+    } catch (error) {
+      console.error('Error al eliminar curso desde perfil:', error);
+      alert('No se pudo eliminar el curso.');
+    } finally {
+      setDeletingCourseId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -73,7 +165,19 @@ export default function UserProfile() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-2xl p-6 md:p-8 mb-8 border border-gray-200">
           <div className="flex flex-col md:flex-row items-start gap-6">
-            <img src={profile.avatar} alt={profile.name} className="w-24 h-24 rounded-full border-4 border-purple-100" />
+            <div className="relative">
+              <img
+                src={avatarPreview || profile.avatar}
+                alt={profile.name}
+                className="w-24 h-24 rounded-full border-4 border-purple-100 object-cover"
+              />
+              {isEditing && (
+                <label className="absolute -bottom-2 -right-2 bg-purple-600 text-white p-2 rounded-full cursor-pointer hover:bg-purple-700">
+                  <Upload className="w-4 h-4" />
+                  <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                </label>
+              )}
+            </div>
 
             <div className="flex-1 w-full">
               {!isEditing ? (
@@ -113,7 +217,7 @@ export default function UserProfile() {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-gray-900 mb-2 block">Biografía</label>
+                    <label className="text-sm font-medium text-gray-900 mb-2 block">Biografia</label>
                     <textarea
                       value={draftProfile.bio}
                       onChange={(e) => setDraftProfile((prev) => ({ ...prev, bio: e.target.value }))}
@@ -177,21 +281,23 @@ export default function UserProfile() {
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setIsEditing(false);
+                    setAvatarFile(null);
+                    setAvatarPreview(profile.avatar);
+                  }}
                   className="px-5 py-3 border border-gray-200 rounded-xl hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    updateProfile(draftProfile);
-                    setIsEditing(false);
-                  }}
-                  className="flex items-center gap-2 px-5 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700"
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="flex items-center gap-2 px-5 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:bg-purple-400"
                 >
                   <Save className="w-4 h-4" />
-                  Guardar
+                  {savingProfile ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
             )}
@@ -206,7 +312,27 @@ export default function UserProfile() {
             </h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {publishedCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <div key={course.id}>
+                  <CourseCard course={course} />
+                  <div className="mt-3 flex gap-3">
+                    <Link
+                      to={`/course/${course.id}/edit`}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 hover:bg-purple-100"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Editar
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCourse(course)}
+                      disabled={deletingCourseId === course.id}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {deletingCourseId === course.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </section>
@@ -283,7 +409,7 @@ export default function UserProfile() {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trophy className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Aún no has completado ningún curso</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Aun no has completado ningun curso</h3>
               <p className="text-gray-600">Empieza a aprender y completa tu primer curso.</p>
             </div>
           )}
