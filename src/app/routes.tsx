@@ -6,34 +6,72 @@ import UserProfile from './pages/UserProfile';
 import CreateCourse from './pages/CreateCourse';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AuthRedirect } from './components/AuthRedirect';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Home />,
+    element: (
+      <ProtectedRoute>
+        <Home />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/search',
-    element: <SearchResults />,
+    element: (
+      <ProtectedRoute>
+        <SearchResults />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/course/:id',
-    element: <CourseDetail />,
+    element: (
+      <ProtectedRoute>
+        <CourseDetail />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/course/:id/edit',
+    element: (
+      <ProtectedRoute>
+        <CreateCourse />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/profile',
-    element: <UserProfile />,
+    element: (
+      <ProtectedRoute>
+        <UserProfile />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/create',
-    element: <CreateCourse />,
+    element: (
+      <ProtectedRoute>
+        <CreateCourse />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/login',
-    element: <Login />,
+    element: (
+      <AuthRedirect>
+        <Login />
+      </AuthRedirect>
+    ),
   },
   {
     path: '/register',
-    element: <Register />,
+    element: (
+      <AuthRedirect>
+        <Register />
+      </AuthRedirect>
+    ),
   },
 ]);

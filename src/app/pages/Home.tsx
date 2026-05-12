@@ -3,6 +3,7 @@ import { Search, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CategoryCard } from '../components/CategoryCard';
+import { Navbar } from '../components/Navbar';
 import { categories } from '../data/mockData';
 
 export default function Home() {
@@ -18,8 +19,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-white">
+      <Navbar />
+
       {/* Hero Section */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16 text-center">
         {/* Logo and Title */}
         <div className="flex items-center justify-center gap-3 mb-6">
           <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center shadow-xl">

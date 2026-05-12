@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Search, LogIn, CircleAlert } from 'lucide-react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebaseConfig';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   const [formData, setFormData] = useState({
     email: '',
@@ -41,7 +43,7 @@ export default function Login() {
         formData.email.trim(),
         formData.password
       );
-      navigate('/');
+      navigate(redirectTo, { replace: true });
     } catch (err: any) {
       if (err.code === 'auth/invalid-credential') {
         setError('Correo o contraseña incorrectos.');

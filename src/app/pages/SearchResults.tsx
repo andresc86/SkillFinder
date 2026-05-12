@@ -5,8 +5,8 @@ import { CourseCard } from '../components/CourseCard';
 import { X, SlidersHorizontal, SearchX } from 'lucide-react';
 import {
   durationOptions,
+  getFirebaseCourses,
   getAllCourses,
-  getAvailableCategories,
   levelOptions,
   matchesCourseSearch,
   parseDurationToMinutes,
@@ -50,16 +50,43 @@ export default function SearchResults() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [catalogVersion, setCatalogVersion] = useState(0);
+  const [firebaseCourses, setFirebaseCourses] = useState<ReturnType<typeof getAllCourses>>([]);
 
   const filters = useMemo(() => getFiltersFromParams(searchParams), [searchParams]);
-  const availableCategories = useMemo(() => getAvailableCategories(), [catalogVersion]);
-  const allCourses = useMemo(() => getAllCourses(), [catalogVersion]);
+  const allCourses = useMemo(() => {
+    const remoteIds = new Set(firebaseCourses.map((course) => course.id));
+    return [...firebaseCourses, ...getAllCourses().filter((course) => !remoteIds.has(course.id))];
+  }, [catalogVersion, firebaseCourses]);
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(allCourses.map((course) => course.category).filter(Boolean)));
+  }, [allCourses]);
 
   useEffect(() => {
     setSearchQuery(filters.q);
   }, [filters.q]);
 
   useEffect(() => subscribeToSkillFinderUpdates(() => setCatalogVersion((value) => value + 1)), []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFirebaseCourses = async () => {
+      try {
+        const courses = await getFirebaseCourses();
+        if (mounted) {
+          setFirebaseCourses(courses);
+        }
+      } catch (error) {
+        console.error('No se pudieron cargar los cursos de Firebase:', error);
+      }
+    };
+
+    loadFirebaseCourses();
+
+    return () => {
+      mounted = false;
+    };
+  }, [catalogVersion]);
 
   const updateParams = (patch: Partial<FiltersState>) => {
     const nextFilters = { ...filters, ...patch };

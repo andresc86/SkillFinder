@@ -12,6 +12,8 @@ export interface Course {
   creator: {
     name: string;
     avatar: string;
+    uid?: string;
+    email?: string;
   };
   rating: number;
   reviews: number;
@@ -25,6 +27,7 @@ export interface Lesson {
   id: string;
   title: string;
   duration: string;
+  videoUrl?: string;
   completed?: boolean;
 }
 
